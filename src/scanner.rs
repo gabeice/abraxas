@@ -12,16 +12,18 @@ pub enum Token {
     Modulo,
     Integer(i32),
     Float(f64),
-    Variable(Box<str>),
+    Char(char),
     String(Box<str>),
+    Identifier(Box<str>),
 }
 
 enum ScanningOperation {
     None,
     NumericLiteral,
     FloatLiteral,
-    Keyword,
+    Identifier,
     String,
+    Char,
 }
 
 pub struct SyntaxError {
@@ -32,6 +34,7 @@ pub fn scan(input: String) -> Result<Vec<Token>, SyntaxError> {
     let mut tokens: Vec<Token> = Vec::new();
 
     let mut current_token = "".to_string();
+    let mut scanned_char: Option<char> = None;
     let mut current_scanning_operation = ScanningOperation::None;
     for (idx, char) in input.as_str().chars().enumerate() {
         match current_scanning_operation {
@@ -44,10 +47,26 @@ pub fn scan(input: String) -> Result<Vec<Token>, SyntaxError> {
                     current_token.push(char);
                 }
             }
-            ScanningOperation::Keyword => {
+            ScanningOperation::Char => {
+                if char == '\'' {
+                    match scanned_char {
+                        Some(ch) => {
+                            tokens.push(Token::Char(ch));
+                            current_scanning_operation = ScanningOperation::None;
+                        }
+                        None => return Err(SyntaxError { position: idx }),
+                    }
+                } else {
+                    match scanned_char {
+                        Some(_ch) => return Err(SyntaxError { position: idx }),
+                        None => scanned_char = Some(char),
+                    }
+                }
+            }
+            ScanningOperation::Identifier => {
                 if char.is_whitespace() {
                     if current_token.len() > 0 {
-                        tokens.push(Token::Variable(current_token.clone().as_str().into()));
+                        tokens.push(Token::Identifier(current_token.clone().as_str().into()));
                     }
                     current_token.clear();
                     current_scanning_operation = ScanningOperation::None;
@@ -111,9 +130,11 @@ pub fn scan(input: String) -> Result<Vec<Token>, SyntaxError> {
                     current_scanning_operation = ScanningOperation::NumericLiteral;
                 } else if char.is_alphabetic() {
                     current_token.push(char);
-                    current_scanning_operation = ScanningOperation::Keyword;
+                    current_scanning_operation = ScanningOperation::Identifier;
                 } else if char == '"' {
                     current_scanning_operation = ScanningOperation::String;
+                } else if char == '\'' {
+                    current_scanning_operation = ScanningOperation::Char;
                 } else if !char.is_whitespace() {
                     return Err(SyntaxError { position: idx });
                 }
