@@ -5,6 +5,7 @@ pub enum Token {
     CloseParen,
     OpenBracket,
     CloseBracket,
+    Equals,
     Plus,
     Minus,
     Times,
@@ -27,7 +28,7 @@ enum ScanningOperation {
 }
 
 pub struct SyntaxError {
-    position: usize,
+    pub position: usize,
 }
 
 pub fn scan(input: String) -> Result<Vec<Token>, SyntaxError> {
@@ -115,6 +116,8 @@ pub fn scan(input: String) -> Result<Vec<Token>, SyntaxError> {
                     tokens.push(Token::OpenBracket);
                 } else if char == ']' {
                     tokens.push(Token::CloseBracket);
+                } else if char == '=' {
+                    tokens.push(Token::Equals);
                 } else if char == '+' {
                     tokens.push(Token::Plus);
                 } else if char == '-' {
