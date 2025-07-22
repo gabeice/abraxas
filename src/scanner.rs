@@ -66,9 +66,7 @@ pub fn scan(input: String) -> Result<Vec<Token>, SyntaxError> {
             }
             ScanningOperation::Identifier => {
                 if char.is_whitespace() {
-                    if current_token.len() > 0 {
-                        tokens.push(Token::Identifier(current_token.clone().as_str().into()));
-                    }
+                    tokens.push(Token::Identifier(current_token.clone().as_str().into()));
                     current_token.clear();
                     current_scanning_operation = ScanningOperation::None;
                 } else if char.is_alphanumeric() || char != '_' || char != '-' {
