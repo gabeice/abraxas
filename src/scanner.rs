@@ -72,132 +72,124 @@ pub fn scan(input: String) -> Result<Vec<Expression>, SyntaxError> {
     let mut scanned_char: Option<char> = None;
     let mut num_open_parentheses = 0;
     for (idx, char) in input.as_str().chars().enumerate() {
-        match scanner_state {
-            ScannerState::ExpectingExpressionStart => {
-                if char == '(' {
-                    scanner_state = ScannerState::ExpectingOperand;
-                    num_open_parentheses += 1;
-                } else if !char.is_whitespace() {
-                    return Err(SyntaxError { position: idx });
-                }
+        match (char, &scanner_state) {
+            ('(', ScannerState::ExpectingExpressionStart) => {
+                scanner_state = ScannerState::ExpectingOperand;
+                num_open_parentheses += 1;
             }
-            ScannerState::ExpectingOperand => {
-                if char.is_alphabetic() || ['+', '-', '*', '/', '=', '<', '>'].contains(&char) {
-                    scanner_state = ScannerState::ScanningOperand;
-                    current_token.push(char);
-                } else if !char.is_whitespace() {
-                    return Err(SyntaxError { position: idx });
-                }
+            (
+                'a'..='z' | 'A'..='Z' | '+' | '-' | '*' | '/' | '=' | '<' | '>',
+                ScannerState::ExpectingOperand,
+            ) => {
+                scanner_state = ScannerState::ScanningOperand;
+                current_token.push(char);
             }
-            ScannerState::ScanningOperand => {
-                if char.is_whitespace() {
-                    let operand = get_operand(&mut current_token, idx)?;
-                    current_operand = Some(operand);
-                    current_token.clear();
+            (
+                ' ' | '\x09'..='\x0d',
+                ScannerState::ExpectingExpressionStart
+                | ScannerState::ExpectingOperand
+                | ScannerState::ExpectingArg,
+            ) => {}
+            ('\'', ScannerState::ScanningChar) => match scanned_char {
+                Some(ch) => {
+                    current_arg_list.push(ExpressionArg::Char(ch));
                     scanner_state = ScannerState::ExpectingArg;
-                } else if char.is_alphanumeric() || char == '_' || char == '-' {
-                    current_token.push(char);
-                } else {
-                    return Err(SyntaxError { position: idx });
                 }
-                // Check close paren
+                None => return Err(SyntaxError { position: idx }),
+            },
+            (_, ScannerState::ScanningChar) => match scanned_char {
+                Some(_ch) => return Err(SyntaxError { position: idx }),
+                None => scanned_char = Some(char),
+            },
+            ('a'..='z' | 'A'..='Z' | '_' | '-', ScannerState::ScanningOperand) => {
+                current_token.push(char);
             }
-            ScannerState::ScanningChar => {
-                if char == '\'' {
-                    match scanned_char {
-                        Some(ch) => {
-                            current_arg_list.push(ExpressionArg::Char(ch));
-                            scanner_state = ScannerState::ExpectingArg;
-                        }
-                        None => return Err(SyntaxError { position: idx }),
+            ('0'..='9', ScannerState::ScanningNumber | ScannerState::ScanningFloat) => {
+                current_token.push(char);
+            }
+            (')' | ' ' | '\x09'..='\x0d', ScannerState::ScanningOperand) => {
+                let operand = get_operand(&mut current_token, idx)?;
+                current_operand = Some(operand);
+                current_token.clear();
+                scanner_state = ScannerState::ExpectingArg;
+            }
+            (')' | ' ' | '\x09'..='\x0d', ScannerState::ScanningFloat) => {
+                let parsed_float = current_token.clone().parse::<f64>();
+                match parsed_float {
+                    Ok(float_value) => {
+                        current_arg_list.push(ExpressionArg::Float(float_value));
                     }
-                } else {
-                    match scanned_char {
-                        Some(_ch) => return Err(SyntaxError { position: idx }),
-                        None => scanned_char = Some(char),
-                    }
+                    Err(_) => return Err(SyntaxError { position: idx }),
                 }
+                current_token.clear();
+                scanner_state = ScannerState::ExpectingArg;
             }
-            ScannerState::ScanningFloat => {
-                if char.is_whitespace() {
-                    let parsed_float = current_token.clone().parse::<f64>();
-                    match parsed_float {
-                        Ok(float_value) => {
-                            current_arg_list.push(ExpressionArg::Float(float_value));
-                        }
-                        Err(_) => return Err(SyntaxError { position: idx }),
-                    }
-                    current_token.clear();
-                    scanner_state = ScannerState::ExpectingArg;
-                } else if char.is_numeric() {
-                    current_token.push(char);
-                } else {
-                    return Err(SyntaxError { position: idx });
+            (')' | ' ' | '\x09'..='\x0d', ScannerState::ScanningNumber) => {
+                let parsed_int = current_token.clone().parse::<i32>().unwrap();
+                current_arg_list.push(ExpressionArg::Int(parsed_int));
+                current_token.clear();
+                scanner_state = ScannerState::ExpectingArg;
+            }
+            ('.', ScannerState::ScanningNumber) => {
+                current_token.push(char);
+                scanner_state = ScannerState::ScanningFloat;
+            }
+            ('(', ScannerState::ExpectingArg) => {
+                scanner_state = ScannerState::ExpectingOperand;
+                num_open_parentheses += 1;
+                match current_operand {
+                    Some(op) => open_expressions.push(Expression {
+                        operand: op,
+                        arguments: current_arg_list.clone(),
+                    }),
+                    None => return Err(SyntaxError { position: idx }),
                 }
-                // Check close paren
+                current_operand = None;
+                current_arg_list.clear();
             }
-            ScannerState::ScanningNumber => {
-                if char.is_whitespace() {
-                    let parsed_int = current_token.clone().parse::<i32>().unwrap();
-                    current_arg_list.push(ExpressionArg::Int(parsed_int));
-                    current_token.clear();
-                    scanner_state = ScannerState::ExpectingArg;
-                } else if char == '.' {
-                    current_token.push(char);
-                    scanner_state = ScannerState::ScanningFloat;
-                } else if char.is_numeric() {
-                    current_token.push(char);
-                } else {
-                    return Err(SyntaxError { position: idx });
+            ('0'..='9', ScannerState::ExpectingArg) => {
+                current_token.push(char);
+                scanner_state = ScannerState::ScanningNumber;
+            }
+            ('\'', ScannerState::ExpectingArg) => {
+                scanner_state = ScannerState::ScanningChar;
+            }
+            _ => {
+                return Err(SyntaxError { position: idx });
+            }
+        }
+
+        if let (
+            ')',
+            ScannerState::ScanningFloat
+            | ScannerState::ScanningNumber
+            | ScannerState::ExpectingArg
+            | ScannerState::ScanningOperand,
+        ) = (char, &scanner_state)
+        {
+            num_open_parentheses -= 1;
+            if num_open_parentheses < 0 {
+                return Err(SyntaxError { position: idx });
+            }
+            let expression = match current_operand {
+                Some(op) => Expression {
+                    operand: op.clone(),
+                    arguments: current_arg_list.clone(),
+                },
+                None => return Err(SyntaxError { position: idx }),
+            };
+            match open_expressions.pop() {
+                Some(mut open_expression) => {
+                    current_operand = Some(open_expression.operand);
+                    open_expression
+                        .arguments
+                        .push(ExpressionArg::NestedExpression(expression));
+                    current_arg_list = open_expression.arguments;
                 }
-                // Check close paren
-            }
-            ScannerState::ExpectingArg => {
-                if char == '(' {
-                    scanner_state = ScannerState::ExpectingOperand;
-                    num_open_parentheses += 1;
-                    match current_operand {
-                        Some(op) => open_expressions.push(Expression {
-                            operand: op,
-                            arguments: current_arg_list.clone(),
-                        }),
-                        None => return Err(SyntaxError { position: idx }),
-                    }
+                None => {
+                    complete_expressions.push(expression);
                     current_operand = None;
                     current_arg_list.clear();
-                } else if char == ')' {
-                    num_open_parentheses -= 1;
-                    if num_open_parentheses < 0 {
-                        return Err(SyntaxError { position: idx });
-                    }
-                    let expression = match current_operand {
-                        Some(op) => Expression {
-                            operand: op.clone(),
-                            arguments: current_arg_list.clone(),
-                        },
-                        None => return Err(SyntaxError { position: idx }),
-                    };
-                    match open_expressions.pop() {
-                        Some(mut open_expression) => {
-                            current_operand = Some(open_expression.operand);
-                            open_expression
-                                .arguments
-                                .push(ExpressionArg::NestedExpression(expression));
-                            current_arg_list = open_expression.arguments;
-                        }
-                        None => {
-                            complete_expressions.push(expression);
-                            current_operand = None;
-                            current_arg_list.clear();
-                        }
-                    }
-                } else if char.is_numeric() {
-                    current_token.push(char);
-                    scanner_state = ScannerState::ScanningNumber;
-                } else if char == '\'' {
-                    scanner_state = ScannerState::ScanningChar;
-                } else if !char.is_whitespace() {
-                    return Err(SyntaxError { position: idx });
                 }
             }
         }
