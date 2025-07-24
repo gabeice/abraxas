@@ -60,7 +60,7 @@ fn get_operand(token: &mut String, position: usize) -> Result<Operand, SyntaxErr
     }
 }
 
-pub fn scan(input: String) -> Result<Vec<Expression>, SyntaxError> {
+pub fn parse(input: String) -> Result<Vec<Expression>, SyntaxError> {
     let mut complete_expressions: Vec<Expression> = Vec::new();
     let mut open_expressions: Vec<Expression> = Vec::new();
 

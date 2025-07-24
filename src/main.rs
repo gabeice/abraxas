@@ -1,9 +1,9 @@
 use std::env;
 use std::fs;
 
-use crate::scanner::SyntaxError;
+use crate::parser::SyntaxError;
 
-pub mod scanner;
+pub mod parser;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -16,7 +16,7 @@ fn main() {
             return;
         }
     };
-    let tokens = match scanner::scan(contents) {
+    let expressions = match parser::parse(contents) {
         Ok(t) => t,
         Err(SyntaxError { position }) => {
             println!("Syntax error at position {position}");
