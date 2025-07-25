@@ -10,7 +10,7 @@ enum ScannerState {
     ScanningChar,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum Operand {
     Add,
     Subtract,
@@ -25,7 +25,7 @@ enum Operand {
     GreaterThan,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum ExpressionArg {
     Int(i32),
     Float(f64),
@@ -33,7 +33,7 @@ enum ExpressionArg {
     NestedExpression(Expression),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Expression {
     operand: Operand,
     arguments: Vec<ExpressionArg>,
