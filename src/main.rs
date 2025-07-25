@@ -24,5 +24,5 @@ fn main() {
         }
     };
 
-    print!("{:#?}", expressions);
+    println!("{:#?}", expressions);
 }

@@ -16,6 +16,7 @@ enum Operand {
     Subtract,
     Multiply,
     Divide,
+    AbsoluteValue,
     Not,
     And,
     Or,
@@ -49,6 +50,7 @@ fn get_operand(token: &mut String, position: usize) -> Result<Operand, SyntaxErr
         "-" => Ok(Operand::Subtract),
         "*" => Ok(Operand::Multiply),
         "/" => Ok(Operand::Divide),
+        "abs" => Ok(Operand::AbsoluteValue),
         "not" => Ok(Operand::Not),
         "and" => Ok(Operand::And),
         "or" => Ok(Operand::Or),
@@ -154,6 +156,7 @@ pub fn parse(input: String) -> Result<Vec<Expression>, SyntaxError> {
             ('\'', ScannerState::ExpectingArg) => {
                 scanner_state = ScannerState::ScanningChar;
             }
+            (')', ScannerState::ExpectingArg) => {}
             _ => {
                 return Err(SyntaxError { position: idx });
             }
