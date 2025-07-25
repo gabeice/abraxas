@@ -176,7 +176,7 @@ pub fn parse(input: String) -> Result<Vec<Expression>, SyntaxError> {
                     operand: op.clone(),
                     arguments: current_arg_list.clone(),
                 },
-                None => return Err(SyntaxError { position: idx }),
+                None => unreachable!(),
             };
             match open_expressions.pop() {
                 Some(mut open_expression) => {
