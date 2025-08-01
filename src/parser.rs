@@ -8,10 +8,11 @@ enum ScannerState {
     ScanningNumber,
     ScanningFloat,
     ScanningChar,
+    ScanningTerm,
 }
 
 #[derive(Clone, Debug)]
-enum Operand {
+pub enum Operand {
     Add,
     Subtract,
     Multiply,
@@ -27,17 +28,18 @@ enum Operand {
 }
 
 #[derive(Clone, Debug)]
-enum ExpressionArg {
+pub enum ExpressionArg {
     Int(i32),
     Float(f64),
     Char(char),
-    NestedExpression(Expression),
+    Bool(bool),
+    NestedExpression(OpenExpression),
 }
 
 #[derive(Clone, Debug)]
-pub struct Expression {
-    operand: Operand,
-    arguments: Vec<ExpressionArg>,
+pub struct OpenExpression {
+    pub operand: Operand,
+    pub arguments: Vec<ExpressionArg>,
 }
 
 pub struct SyntaxError {
@@ -62,9 +64,9 @@ fn get_operand(token: &mut String, position: usize) -> Result<Operand, SyntaxErr
     }
 }
 
-pub fn parse(input: String) -> Result<Vec<Expression>, SyntaxError> {
-    let mut complete_expressions: Vec<Expression> = Vec::new();
-    let mut open_expressions: Vec<Expression> = Vec::new();
+pub fn parse(input: String) -> Result<Vec<OpenExpression>, SyntaxError> {
+    let mut open_expressions: Vec<OpenExpression> = Vec::new();
+    let mut complete_expressions: Vec<OpenExpression> = Vec::new();
 
     let mut current_operand = None;
     let mut current_arg_list = Vec::new();
@@ -103,7 +105,10 @@ pub fn parse(input: String) -> Result<Vec<Expression>, SyntaxError> {
                 Some(_ch) => return Err(SyntaxError { position: idx }),
                 None => scanned_char = Some(char),
             },
-            ('a'..='z' | 'A'..='Z' | '_' | '-', ScannerState::ScanningOperand) => {
+            (
+                'a'..='z' | 'A'..='Z' | '_' | '-',
+                ScannerState::ScanningOperand | ScannerState::ScanningTerm,
+            ) => {
                 current_token.push(char);
             }
             ('0'..='9', ScannerState::ScanningNumber | ScannerState::ScanningFloat) => {
@@ -132,6 +137,16 @@ pub fn parse(input: String) -> Result<Vec<Expression>, SyntaxError> {
                 current_token.clear();
                 scanner_state = ScannerState::ExpectingArg;
             }
+            (')' | ' ' | '\x09'..='\x0d', ScannerState::ScanningTerm) => {
+                let term = match current_token.as_str() {
+                    "true" => ExpressionArg::Bool(true),
+                    "false" => ExpressionArg::Bool(false),
+                    _ => return Err(SyntaxError { position: idx }),
+                };
+                current_arg_list.push(term);
+                current_token.clear();
+                scanner_state = ScannerState::ExpectingArg;
+            }
             ('.', ScannerState::ScanningNumber) => {
                 current_token.push(char);
                 scanner_state = ScannerState::ScanningFloat;
@@ -140,7 +155,7 @@ pub fn parse(input: String) -> Result<Vec<Expression>, SyntaxError> {
                 scanner_state = ScannerState::ExpectingOperand;
                 num_open_parentheses += 1;
                 match current_operand {
-                    Some(op) => open_expressions.push(Expression {
+                    Some(op) => open_expressions.push(OpenExpression {
                         operand: op,
                         arguments: current_arg_list.clone(),
                     }),
@@ -157,6 +172,10 @@ pub fn parse(input: String) -> Result<Vec<Expression>, SyntaxError> {
                 scanner_state = ScannerState::ScanningChar;
             }
             (')', ScannerState::ExpectingArg) => {}
+            ('a'..='z' | 'A'..='Z', ScannerState::ExpectingArg) => {
+                current_token.push(char);
+                scanner_state = ScannerState::ScanningTerm;
+            }
             _ => {
                 return Err(SyntaxError { position: idx });
             }
@@ -167,7 +186,8 @@ pub fn parse(input: String) -> Result<Vec<Expression>, SyntaxError> {
             ScannerState::ScanningFloat
             | ScannerState::ScanningNumber
             | ScannerState::ExpectingArg
-            | ScannerState::ScanningOperand,
+            | ScannerState::ScanningOperand
+            | ScannerState::ScanningTerm,
         ) = (char, &scanner_state)
         {
             num_open_parentheses -= 1;
@@ -175,7 +195,7 @@ pub fn parse(input: String) -> Result<Vec<Expression>, SyntaxError> {
                 return Err(SyntaxError { position: idx });
             }
             let expression = match current_operand {
-                Some(op) => Expression {
+                Some(op) => OpenExpression {
                     operand: op.clone(),
                     arguments: current_arg_list.clone(),
                 },
